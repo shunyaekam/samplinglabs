@@ -6,7 +6,7 @@ import { UserCircleIcon } from '@heroicons/react/24/outline'
 import Image from 'next/image'
 import Link from 'next/link'
 import { MessageCircle } from 'lucide-react'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import AIChatDialog from '../learning/AIChatDialog'
 
 interface TopBarProps {
@@ -17,6 +17,8 @@ interface TopBarProps {
 
 export default function TopBar({ onMenuClick, userEmail, userImage }: TopBarProps) {
   const [chatOpen, setChatOpen] = useState(false)
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'SUPER_ADMIN'
 
   return (
     <div className="fixed top-0 left-0 right-0 bg-white shadow z-10">
@@ -43,13 +45,15 @@ export default function TopBar({ onMenuClick, userEmail, userImage }: TopBarProp
           </Link>
         </div>
         <div className="flex items-center space-x-4">
-          <button
-            onClick={() => setChatOpen(true)}
-            className="flex items-center space-x-2 text-gray-500 hover:text-gray-700"
-          >
-            <MessageCircle className="w-5 h-5" />
-            <span>AI Tutor</span>
-          </button>
+          {!isAdmin && (
+            <button
+              onClick={() => setChatOpen(true)}
+              className="flex items-center space-x-2 text-gray-500 hover:text-gray-700"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span>AI Tutor</span>
+            </button>
+          )}
           <div className="flex items-center space-x-2">
             {userImage ? (
               <Image
@@ -63,7 +67,7 @@ export default function TopBar({ onMenuClick, userEmail, userImage }: TopBarProp
               <UserCircleIcon className="h-8 w-8 text-gray-400" />
             )}
             <button
-              onClick={() => signOut({ callbackUrl: '/' })}
+              onClick={() => signOut({ callbackUrl: '/login' })}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
               Sign out
@@ -72,11 +76,13 @@ export default function TopBar({ onMenuClick, userEmail, userImage }: TopBarProp
         </div>
       </div>
 
-      <AIChatDialog 
-        courseId="" 
-        open={chatOpen}
-        onOpenChange={setChatOpen}
-      />
+      {!isAdmin && (
+        <AIChatDialog 
+          courseId="" 
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+        />
+      )}
     </div>
   )
 } 

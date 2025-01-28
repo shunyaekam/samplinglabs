@@ -4,50 +4,44 @@ import { NextResponse } from 'next/server'
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token
-    const isAdmin = token?.role === 'SUPER_ADMIN'
     const path = req.nextUrl.pathname
 
-    // Skip middleware for API routes
-    if (path.startsWith('/api/')) {
+    // Public routes - no auth required
+    if (
+      path === '/' ||
+      path === '/login' ||
+      path === '/enterprise/register' ||
+      path.startsWith('/api/') ||
+      path.startsWith('/_next/') ||
+      path.includes('favicon.ico')
+    ) {
       return NextResponse.next()
     }
 
-    // If accessing root path, redirect based on role
-    if (path === '/') {
-      if (!token) {
-        return NextResponse.next()
-      }
-      if (isAdmin) {
-        return NextResponse.redirect(new URL('/admin', req.url))
-      }
-      return NextResponse.redirect(new URL('/dashboard/employee', req.url))
-    }
-
-    // Allow access to auth routes
-    if (path.startsWith('/auth')) {
-      return NextResponse.next()
-    }
-
-    // If not logged in, redirect to home
+    // No token - redirect to login
     if (!token) {
-      return NextResponse.redirect(new URL('/', req.url))
+      return NextResponse.redirect(new URL('/login', req.url))
     }
 
-    // Redirect admin to admin dashboard
-    if (path.startsWith('/dashboard') && isAdmin) {
-      return NextResponse.redirect(new URL('/admin', req.url))
-    }
-
-    // Redirect employee to employee dashboard
-    if (path.startsWith('/admin') && !isAdmin) {
+    // Admin routes protection
+    if (path.startsWith('/admin') && token.role !== 'SUPER_ADMIN') {
       return NextResponse.redirect(new URL('/dashboard/employee', req.url))
+    }
+
+    // Employee routes protection
+    if (path.startsWith('/dashboard/employee') && token.role === 'SUPER_ADMIN') {
+      return NextResponse.redirect(new URL('/admin', req.url))
     }
 
     return NextResponse.next()
   },
   {
     callbacks: {
-      authorized: () => true
+      authorized: ({ token }) => !!token,
+    },
+    pages: {
+      signIn: '/login',
+      signOut: '/login',
     },
   }
 )

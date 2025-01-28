@@ -1,24 +1,30 @@
 datasource db {
-  provider = "postgresql" // or "mysql" or "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Course {
+  id               String          @id @default(cuid())
+  title            String
+  description      String
+  status           String         // 'active', 'draft', 'archived'
+  fileType         String         // 'pdf'
+  originalFileName String
+  content          String         @db.Text // Store PDF as base64
+  chunks           DocumentChunk[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 model DocumentChunk {
   id        String   @id @default(cuid())
-  content   String
-  embedding Unsupported("vector(384)")?
+  content   String   @db.Text
   courseId  String
-  course    Course  @relation(fields: [courseId], references: [id])
-}
-
-model Course {
-  id               String         @id @default(cuid())
-  title            String
-  description      String
-  status           String
-  fileType         String
-  originalFileName String
-  content          String
-  chunks           DocumentChunk[]
-  createdAt        DateTime       @default(now())
+  course    Course   @relation(fields: [courseId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 } 

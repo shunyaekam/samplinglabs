@@ -1,148 +1,161 @@
 'use client'
 
 import { useState } from 'react'
-import { useToast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
 
 interface CourseContentUploaderProps {
-  onSuccess?: () => void
+  onSuccess: () => void
   onCancel?: () => void
 }
 
 export default function CourseContentUploader({ onSuccess, onCancel }: CourseContentUploaderProps) {
-  const [uploading, setUploading] = useState(false)
-  const { toast } = useToast()
+  const [file, setFile] = useState<File | null>(null)
   const [courseName, setCourseName] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const allowedTypes = [
-    'application/pdf',
-    'text/plain',
-    'text/markdown',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  const allowedFileTypes = [
+    'application/pdf',                     // PDF
+    'text/plain',                         // TXT
+    'application/msword',                 // DOC
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'application/vnd.ms-powerpoint',      // PPT
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // PPTX
+    'text/markdown',                      // MD
+    'text/csv'                           // CSV
   ]
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!e.target.files?.length || !courseName) return
-
-    const file = e.target.files[0]
-    
-    // Validate file size
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      toast({
-        title: 'Error',
-        description: 'File size must be less than 10MB',
-        variant: 'destructive',
-      })
-      return
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    if (selectedFile) {
+      if (allowedFileTypes.includes(selectedFile.type)) {
+        setFile(selectedFile)
+        setError(null)
+        // Set default course name from file name if not already set
+        if (!courseName) {
+          setCourseName(selectedFile.name.split('.')[0])
+        }
+      } else {
+        setError('Invalid file type. Please upload a PDF, DOC, DOCX, TXT, PPT, PPTX, MD, or CSV file.')
+        setFile(null)
+      }
     }
+  }
 
-    // Validate file type
-    if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: 'Invalid File Type',
-        description: 'Please upload PDF, Text, Markdown, or Word documents',
-        variant: 'destructive'
-      })
-      return
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!file || !courseName) return
+
+    setUploading(true)
+    setError(null)
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('title', courseName)
 
     try {
-      setUploading(true)
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('courseName', courseName)
-
-      console.log('Uploading file:', {
-        name: file.name,
-        type: file.type,
-        size: `${(file.size / 1024 / 1024).toFixed(2)}MB`
-      })
-
-      const response = await fetch('/api/admin/upload', {
+      const response = await fetch('/api/courses', {
         method: 'POST',
         body: formData,
       })
 
-      // Read the response text first
-      const responseText = await response.text()
-      let data
-
-      try {
-        data = JSON.parse(responseText)
-      } catch (error) {
-        console.error('Failed to parse response:', responseText)
-        throw new Error('Invalid response from server')
-      }
-
       if (!response.ok) {
-        throw new Error(data.error || `Upload failed with status ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload course')
       }
-
-      toast({
-        title: 'Success',
-        description: data.message || 'Course uploaded successfully',
-      })
 
       setCourseName('')
-      if (e.target.form) {
-        e.target.form.reset()
-      }
-      onSuccess?.()
-
-    } catch (error) {
-      console.error('Upload error:', error)
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to upload file',
-        variant: 'destructive',
-      })
+      setFile(null)
+      onSuccess()
+    } catch (err) {
+      console.error('Upload error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to upload course')
     } finally {
       setUploading(false)
     }
   }
 
   return (
-    <div className="space-y-6 p-6 bg-white rounded-lg shadow">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Upload Course Content</h3>
-        <p className="text-sm text-gray-500">
-          Upload PDF files or text documents to create courses. The content will be processed and made available for AI-assisted learning.
-        </p>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="courseName" className="block text-sm font-medium text-gray-700">
+          Course Title
+        </label>
+        <input
+          type="text"
+          id="courseName"
+          value={courseName}
+          onChange={(e) => setCourseName(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          required
+        />
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="courseName" className="block text-sm font-medium text-gray-700">
-            Course Name
-          </label>
-          <input
-            type="text"
-            id="courseName"
-            value={courseName}
-            onChange={(e) => setCourseName(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
-            placeholder="Enter course name"
-          />
-        </div>
-
-        <div className="relative">
-          <input
-            type="file"
-            accept=".pdf,application/pdf,.txt,text/plain,.md,text/markdown"
-            onChange={handleUpload}
-            disabled={uploading || !courseName}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-              file:rounded-md file:border-0 file:text-sm file:font-semibold
-              file:bg-black file:text-white hover:file:bg-gray-800
-              disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          {uploading && (
-            <div className="absolute right-0 top-0 h-full flex items-center pr-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Course Content
+        </label>
+        <div className="mt-1 flex justify-center rounded-md border-2 border-dashed border-gray-300 px-6 pt-5 pb-6">
+          <div className="space-y-1 text-center">
+            <div className="flex text-sm text-gray-600">
+              <label
+                htmlFor="file-upload"
+                className="relative cursor-pointer rounded-md bg-white font-medium text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-indigo-500"
+              >
+                <span>Upload a file</span>
+                <input
+                  id="file-upload"
+                  name="file-upload"
+                  type="file"
+                  className="sr-only"
+                  onChange={handleFileChange}
+                  accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.md,.csv"
+                />
+              </label>
             </div>
-          )}
+            <p className="text-xs text-gray-500">
+              PDF, DOC, DOCX, TXT, PPT, PPTX, MD, or CSV up to 10MB
+            </p>
+            {file && (
+              <p className="text-sm text-gray-600">
+                Selected: {file.name}
+              </p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {error && (
+        <div className="text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      <div className="flex justify-end space-x-3">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={uploading || !file || !courseName}
+          className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            'Upload Course'
+          )}
+        </button>
+      </div>
+    </form>
   )
 } 

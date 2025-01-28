@@ -50,12 +50,40 @@ model AnalyticsEvent {
 }
 
 model Course {
-  id              String    @id @default(cuid())
-  title           String
-  description     String?
-  status          String    @default("ACTIVE")
-  fileType        String?   // Store the original file type
-  originalFileName String?  // Store the original file name
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String          @id @default(cuid())
+  title            String
+  description      String
+  status           String         // 'active', 'draft', 'archived'
+  fileType         String         // 'pdf', 'docx', 'txt', etc.
+  originalFileName String
+  content          String         @db.Text // Base64 encoded content
+  structuredContent Json?         // Structured course content
+  metadata         Json?          // Course metadata
+  modules          Module[]       // Course modules
+  chunks           DocumentChunk[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Module {
+  id        String    @id @default(cuid())
+  title     String
+  order     Int
+  course    Course    @relation(fields: [courseId], references: [id])
+  courseId  String
+  lessons   Lesson[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Lesson {
+  id        String    @id @default(cuid())
+  title     String
+  content   String    @db.Text
+  order     Int
+  module    Module    @relation(fields: [moduleId], references: [id])
+  moduleId  String
+  metadata  Json?     // Tags, difficulty level, etc.
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 } 

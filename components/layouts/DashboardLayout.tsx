@@ -1,17 +1,24 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import DashboardHeader from './DashboardHeader'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'SUPER_ADMIN'
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Single TopBar */}
-      <TopBar onMenuClick={() => setSidebarOpen(true)} />
+      <TopBar 
+        onMenuClick={() => setSidebarOpen(true)} 
+        userEmail={session?.user?.email || ''}
+        userImage={session?.user?.image}
+      />
       
       {/* Mobile sidebar */}
       <div className={`
@@ -31,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </svg>
               </button>
             </div>
-            <Sidebar />
+            <Sidebar isAdmin={isAdmin} />
           </div>
           <div className="flex-shrink-0 w-14" aria-hidden="true"></div>
         </div>
@@ -39,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Desktop sidebar */}
       <div className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:w-64">
-        <Sidebar />
+        <Sidebar isAdmin={isAdmin} />
       </div>
 
       {/* Main content */}

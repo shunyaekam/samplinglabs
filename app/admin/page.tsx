@@ -1,154 +1,101 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import CourseContentUploader from '@/components/admin/CourseContentUploader'
-import EnterpriseManager from '@/components/admin/EnterpriseManager'
 import { useState, useEffect } from 'react'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
-import Image from 'next/image'
-import { signOut } from 'next-auth/react'
+import { BarChart3, Users, BookOpen, Award } from 'lucide-react'
 
 type AnalyticsData = {
   activeUsers: number
   completionRate: number
   totalCourses: number
+  totalEnrollments: number
 }
 
 export default function AdminDashboard() {
-  const { data: session } = useSession()
-  const router = useRouter()
-  const [activeTab, setActiveTab] = useState('courses')
   const [analytics, setAnalytics] = useState<AnalyticsData>({
     activeUsers: 0,
     completionRate: 0,
-    totalCourses: 0
+    totalCourses: 0,
+    totalEnrollments: 0
   })
 
   useEffect(() => {
-    async function fetchAnalytics() {
-      try {
-        const response = await fetch('/api/admin/analytics')
-        if (response.ok) {
-          const data = await response.json()
-          setAnalytics(data)
-        }
-      } catch (error) {
-        console.error('Error fetching analytics:', error)
+    fetchAnalytics()
+  }, [])
+
+  async function fetchAnalytics() {
+    try {
+      const response = await fetch('/api/admin/analytics')
+      if (response.ok) {
+        const data = await response.json()
+        setAnalytics(data)
       }
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error)
     }
-
-    if (session?.user) {
-      fetchAnalytics()
-    }
-  }, [session])
-
-  if (!session?.user) {
-    return <div>Loading...</div>
   }
 
+  const stats = [
+    {
+      name: 'Active Users',
+      value: analytics.activeUsers,
+      icon: <Users className="w-6 h-6" />,
+      change: '+12%',
+      changeType: 'positive'
+    },
+    {
+      name: 'Total Courses',
+      value: analytics.totalCourses,
+      icon: <BookOpen className="w-6 h-6" />,
+      change: '+4',
+      changeType: 'positive'
+    },
+    {
+      name: 'Completion Rate',
+      value: `${analytics.completionRate}%`,
+      icon: <Award className="w-6 h-6" />,
+      change: '+2.5%',
+      changeType: 'positive'
+    },
+    {
+      name: 'Total Enrollments',
+      value: analytics.totalEnrollments,
+      icon: <BarChart3 className="w-6 h-6" />,
+      change: '+18%',
+      changeType: 'positive'
+    }
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Image
-                  src="/logo.svg"
-                  alt="Logo"
-                  width={32}
-                  height={32}
-                  className="h-8 w-auto"
-                />
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <div
+            key={stat.name}
+            className="relative overflow-hidden rounded-lg bg-white px-4 pt-5 pb-12 shadow sm:px-6 sm:pt-6"
+          >
+            <dt>
+              <div className="absolute rounded-md bg-indigo-500 p-3">
+                {stat.icon}
               </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                {['Courses', 'Analytics', 'Enterprises'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab.toLowerCase())}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                      activeTab === tab.toLowerCase()
-                        ? 'border-indigo-500 text-gray-900'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:items-center">
-              <div className="flex items-center">
-                <div className="relative">
-                  <button
-                    onClick={() => signOut()}
-                    className="flex items-center space-x-3 hover:bg-gray-100 px-3 py-2 rounded-md"
-                  >
-                    {session.user.image ? (
-                      <Image
-                        src={session.user.image}
-                        alt="Profile"
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 rounded-full"
-                      />
-                    ) : (
-                      <UserCircleIcon className="h-8 w-8 text-gray-400" />
-                    )}
-                    <span className="text-sm text-gray-700">
-                      {session.user.email}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
+              <p className="ml-16 truncate text-sm font-medium text-gray-500">{stat.name}</p>
+            </dt>
+            <dd className="ml-16 flex items-baseline pb-6 sm:pb-7">
+              <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+              <p
+                className={`ml-2 flex items-baseline text-sm font-semibold ${
+                  stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {stat.change}
+              </p>
+            </dd>
           </div>
-        </div>
+        ))}
       </div>
 
-      {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'courses' && (
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Course Content Management</h2>
-            <CourseContentUploader />
-          </div>
-        )}
-
-        {activeTab === 'analytics' && (
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Learning Analytics</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-lg border p-4">
-                <h3 className="text-sm font-medium text-gray-500">Active Users</h3>
-                <p className="mt-1 text-3xl font-semibold text-gray-900">
-                  {analytics.activeUsers}
-                </p>
-              </div>
-              <div className="bg-white rounded-lg border p-4">
-                <h3 className="text-sm font-medium text-gray-500">Average Completion Rate</h3>
-                <p className="mt-1 text-3xl font-semibold text-gray-900">
-                  {analytics.completionRate}%
-                </p>
-              </div>
-              <div className="bg-white rounded-lg border p-4">
-                <h3 className="text-sm font-medium text-gray-500">Total Courses</h3>
-                <p className="mt-1 text-3xl font-semibold text-gray-900">
-                  {analytics.totalCourses}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'enterprises' && (
-          <div className="bg-white shadow rounded-lg p-6">
-            <EnterpriseManager />
-          </div>
-        )}
-      </div>
+      {/* Add charts or other analytics visualizations here */}
     </div>
   )
 } 

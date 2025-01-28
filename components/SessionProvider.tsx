@@ -8,5 +8,9 @@ type Props = {
 }
 
 export default function SessionProvider({ children, session }: Props) {
-  return <Provider session={session}>{children}</Provider>
+  return (
+    <Provider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
+      {children}
+    </Provider>
+  )
 } 

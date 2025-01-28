@@ -1,11 +1,13 @@
+version: '3.8'
 services:
   postgres:
-    image: ankane/pgvector
+    image: postgres:14
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: lms_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

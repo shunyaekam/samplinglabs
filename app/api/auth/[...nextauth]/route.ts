@@ -10,22 +10,23 @@ export const authOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token }) {
-      // Add role to JWT token
-      token.role = isAdmin(token.email) ? 'SUPER_ADMIN' : 'USER'
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        token.role = isAdmin(user.email) ? 'SUPER_ADMIN' : 'USER'
+      }
       return token
     },
     async session({ session, token }) {
-      // Add role to session
-      session.user.role = token.role
+      if (session.user) {
+        session.user.role = token.role
+      }
       return session
     }
   },
   pages: {
-    signIn: '/auth/signin'
+    signIn: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true,
 }
 
 const handler = NextAuth(authOptions)
