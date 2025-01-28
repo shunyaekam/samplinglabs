@@ -1,8 +1,9 @@
+import { HfInference } from '@huggingface/inference'
+import { PrismaClient } from '@prisma/client'
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter'
-import { ChromaClient, OpenAIEmbeddingFunction } from 'chromadb'
 
-const client = new ChromaClient()
-const embedder = new OpenAIEmbeddingFunction(process.env.OPENAI_API_KEY!)
+const prisma = new PrismaClient()
+const hf = new HfInference(process.env.HUGGINGFACE_API_KEY)
 
 // Simple in-memory store
 type DocumentChunk = {
@@ -17,24 +18,16 @@ type DocumentChunk = {
 let documentStore: DocumentChunk[] = []
 
 async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await fetch('https://api.deepseek.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      input: text,
-      model: 'deepseek-embed-v1'
+  try {
+    const response = await hf.featureExtraction({
+      model: 'sentence-transformers/all-MiniLM-L6-v2',
+      inputs: text,
     })
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to generate embeddings')
+    return response
+  } catch (error) {
+    console.error('Embedding generation failed:', error)
+    throw new Error('Failed to generate text embedding')
   }
-
-  const data = await response.json()
-  return data.data[0].embedding
 }
 
 // Cosine similarity between two vectors
@@ -45,54 +38,60 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dotProduct / (magnitudeA * magnitudeB)
 }
 
-export async function processContent(content: string, courseId: string) {
+export async function processContent(text: string, courseId: string) {
   try {
-    // Split content into chunks
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkOverlap: 200
     })
-    const chunks = await splitter.splitText(content)
-
-    // Get or create collection for the course
-    const collection = await client.getOrCreateCollection({
-      name: `course_${courseId}`,
-      embeddingFunction: embedder,
-    })
-
-    // Add documents to collection
-    await collection.add({
-      ids: chunks.map((_, i) => `chunk_${i}`),
-      documents: chunks,
-      metadatas: chunks.map(() => ({ courseId })),
-    })
-
-    return true
+    
+    const documents = await splitter.createDocuments([text])
+    
+    // Process chunks in batches to avoid memory issues
+    const batchSize = 10
+    for (let i = 0; i < documents.length; i += batchSize) {
+      const batch = documents.slice(i, i + batchSize)
+      
+      // Generate embeddings for batch
+      const embeddings = await Promise.all(
+        batch.map(doc => generateEmbedding(doc.pageContent))
+      )
+      
+      // Store batch in database
+      await prisma.$transaction(
+        embeddings.map((embedding, index) => 
+          prisma.documentChunk.create({
+            data: {
+              content: batch[index].pageContent,
+              embedding,
+              courseId
+            }
+          })
+        )
+      )
+    }
   } catch (error) {
-    console.error('Error processing content:', error)
+    console.error('Content processing failed:', error)
     throw error
   }
 }
 
-export async function queryContent(query: string, courseId?: string): Promise<string[]> {
+export async function queryContent(query: string, courseId: string): Promise<string[]> {
   try {
-    if (!courseId) {
-      return []
-    }
-
-    const collection = await client.getCollection({
-      name: `course_${courseId}`,
-      embeddingFunction: embedder,
-    })
-
-    const results = await collection.query({
-      queryTexts: [query],
-      nResults: 3,
-    })
-
-    return results.documents[0] || []
+    const queryEmbedding = await generateEmbedding(query)
+    
+    // Use PostgreSQL's vector similarity search
+    const results = await prisma.$queryRaw`
+      SELECT content, embedding <=> ${queryEmbedding}::vector AS distance
+      FROM "DocumentChunk"
+      WHERE "courseId" = ${courseId}
+      ORDER BY distance ASC
+      LIMIT 3;
+    `
+    
+    return (results as any[]).map(r => r.content)
   } catch (error) {
-    console.error('Error querying content:', error)
+    console.error('Query failed:', error)
     throw error
   }
 }

@@ -2,43 +2,98 @@
 
 import { useState } from 'react'
 import { useToast } from '@/components/ui/use-toast'
-import { Upload, FileText, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
-export default function CourseContentUploader() {
+interface CourseContentUploaderProps {
+  onSuccess?: () => void
+  onCancel?: () => void
+}
+
+export default function CourseContentUploader({ onSuccess, onCancel }: CourseContentUploaderProps) {
   const [uploading, setUploading] = useState(false)
   const { toast } = useToast()
   const [courseName, setCourseName] = useState('')
 
+  const allowedTypes = [
+    'application/pdf',
+    'text/plain',
+    'text/markdown',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length || !courseName) return
 
+    const file = e.target.files[0]
+    
+    // Validate file size
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      toast({
+        title: 'Error',
+        description: 'File size must be less than 10MB',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validate file type
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please upload PDF, Text, Markdown, or Word documents',
+        variant: 'destructive'
+      })
+      return
+    }
+
     try {
       setUploading(true)
-      const file = e.target.files[0]
       const formData = new FormData()
       formData.append('file', file)
       formData.append('courseName', courseName)
 
-      const response = await fetch('/api/admin/upload', {
-        method: 'POST',
-        body: formData
+      console.log('Uploading file:', {
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / 1024 / 1024).toFixed(2)}MB`
       })
 
+      const response = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      // Read the response text first
+      const responseText = await response.text()
+      let data
+
+      try {
+        data = JSON.parse(responseText)
+      } catch (error) {
+        console.error('Failed to parse response:', responseText)
+        throw new Error('Invalid response from server')
+      }
+
       if (!response.ok) {
-        const error = await response.text()
-        throw new Error(error)
+        throw new Error(data.error || `Upload failed with status ${response.status}`)
       }
 
       toast({
         title: 'Success',
-        description: 'Course content uploaded successfully',
+        description: data.message || 'Course uploaded successfully',
       })
+
       setCourseName('')
+      if (e.target.form) {
+        e.target.form.reset()
+      }
+      onSuccess?.()
+
     } catch (error) {
       console.error('Upload error:', error)
       toast({
         title: 'Error',
-        description: 'Failed to upload course content',
+        description: error instanceof Error ? error.message : 'Failed to upload file',
         variant: 'destructive',
       })
     } finally {
@@ -51,7 +106,7 @@ export default function CourseContentUploader() {
       <div className="space-y-2">
         <h3 className="text-lg font-medium">Upload Course Content</h3>
         <p className="text-sm text-gray-500">
-          Upload text files containing course materials. Supported formats include .txt, .md, .doc, .docx, .pdf, and more.
+          Upload PDF files or text documents to create courses. The content will be processed and made available for AI-assisted learning.
         </p>
       </div>
 
@@ -73,7 +128,7 @@ export default function CourseContentUploader() {
         <div className="relative">
           <input
             type="file"
-            accept=".txt,.md,.doc,.docx,.pdf,.rtf,.odt"
+            accept=".pdf,application/pdf,.txt,text/plain,.md,text/markdown"
             onChange={handleUpload}
             disabled={uploading || !courseName}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4

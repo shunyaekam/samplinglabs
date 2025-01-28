@@ -1,0 +1,24 @@
+datasource db {
+  provider = "postgresql" // or "mysql" or "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model DocumentChunk {
+  id        String   @id @default(cuid())
+  content   String
+  embedding Unsupported("vector(384)")?
+  courseId  String
+  course    Course  @relation(fields: [courseId], references: [id])
+}
+
+model Course {
+  id               String         @id @default(cuid())
+  title            String
+  description      String
+  status           String
+  fileType         String
+  originalFileName String
+  content          String
+  chunks           DocumentChunk[]
+  createdAt        DateTime       @default(now())
+} 

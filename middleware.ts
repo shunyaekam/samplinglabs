@@ -7,6 +7,11 @@ export default withAuth(
     const isAdmin = token?.role === 'SUPER_ADMIN'
     const path = req.nextUrl.pathname
 
+    // Skip middleware for API routes
+    if (path.startsWith('/api/')) {
+      return NextResponse.next()
+    }
+
     // If accessing root path, redirect based on role
     if (path === '/') {
       if (!token) {
@@ -42,11 +47,20 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: () => true // Let the middleware function handle authorization
+      authorized: () => true
     },
   }
 )
 
 export const config = {
-  matcher: ['/', '/dashboard/:path*', '/admin/:path*', '/auth/:path*']
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ]
 } 

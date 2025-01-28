@@ -38,32 +38,43 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user || session.user.role !== 'SUPER_ADMIN') {
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user || session.user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const course = await prisma.course.findUnique({
       where: { id: params.id },
-      include: {
-        sections: {
-          orderBy: {
-            order: 'asc'
-          }
-        }
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        fileType: true,
+        originalFileName: true,
+        content: true,
+        createdAt: true,
       }
     })
 
     if (!course) {
-      return new NextResponse('Course not found', { status: 404 })
+      return NextResponse.json(
+        { error: 'Course not found' },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json(course)
   } catch (error) {
     console.error('Error fetching course:', error)
-    return new NextResponse('Error fetching course', { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to fetch course' },
+      { status: 500 }
+    )
   }
 }
 

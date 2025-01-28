@@ -47,4 +47,15 @@ model AnalyticsEvent {
   activeUsers Int      @default(0)
   completions Int      @default(0)
   enrollments Int      @default(0)
+}
+
+model Course {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  status          String    @default("ACTIVE")
+  fileType        String?   // Store the original file type
+  originalFileName String?  // Store the original file name
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 } 
