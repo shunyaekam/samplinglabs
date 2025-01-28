@@ -86,4 +86,16 @@ model Lesson {
   metadata  Json?     // Tags, difficulty level, etc.
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+model CourseVector {
+  id        String   @id @default(cuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  chunk     String   @db.Text
+  embedding Json?    // Store metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
 } 

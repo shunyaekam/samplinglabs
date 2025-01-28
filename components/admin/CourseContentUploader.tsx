@@ -49,24 +49,45 @@ export default function CourseContentUploader({ onSuccess, onCancel }: CourseCon
     setUploading(true)
     setError(null)
 
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('title', courseName)
-
     try {
-      const response = await fetch('/api/courses', {
+      // Create form data
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Upload file
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to upload course')
+        const error = await response.json()
+        throw new Error(error.error || `Upload failed: ${response.status}`)
+      }
+
+      const fileData = await response.json()
+
+      // Create course
+      const courseResponse = await fetch('/api/courses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: courseName,
+          ...fileData,
+        }),
+      })
+
+      if (!courseResponse.ok) {
+        const error = await courseResponse.json()
+        throw new Error(error.error || 'Failed to create course')
       }
 
       setCourseName('')
       setFile(null)
       onSuccess()
+
     } catch (err) {
       console.error('Upload error:', err)
       setError(err instanceof Error ? err.message : 'Failed to upload course')

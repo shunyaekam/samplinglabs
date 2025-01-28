@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '../auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
+import { vectorizeCourse } from '@/lib/services/vectorStore'
 
 // Map MIME types to file extensions
 const mimeTypeToExtension = {
@@ -15,62 +16,97 @@ const mimeTypeToExtension = {
   'text/csv': 'csv'
 }
 
+// Remove edge runtime as it conflicts with Prisma
+// export const runtime = 'edge'
+
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    const courses = await prisma.course.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        fileType: true,
+        originalFileName: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    })
+
+    return new Response(JSON.stringify(courses), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    console.error('Error fetching courses:', error)
+    return new Response(JSON.stringify({ error: 'Failed to fetch courses' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    const title = formData.get('title') as string
-
-    if (!file || !title) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    // Get the file extension from MIME type
-    const fileType = mimeTypeToExtension[file.type]
-    if (!fileType) {
-      return NextResponse.json({ error: `Unsupported file type: ${file.type}` }, { status: 400 })
-    }
-
-    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const data = await request.json()
     
+    if (!data.title || !data.content) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Create course first
     const course = await prisma.course.create({
       data: {
-        title,
-        description: `Course: ${title}`,
-        status: 'active',
-        fileType, // Store the extension instead of MIME type
-        originalFileName: file.name,
-        content: fileBuffer.toString('base64'),
-        chunks: {
-          create: [{ content: 'Initial chunk' }]
+        title: data.title,
+        description: data.description || '',
+        status: 'PROCESSING', // New status while vectorizing
+        fileType: data.fileType || 'text/plain',
+        originalFileName: data.fileName || 'untitled',
+        content: data.content,
+        metadata: {
+          fileSize: data.fileSize,
+          uploadedAt: new Date().toISOString()
         }
       }
     })
 
-    return NextResponse.json({
-      id: course.id,
-      title: course.title,
-      status: course.status
+    // Start vectorization in background
+    vectorizeCourse(course.id).catch(error => {
+      console.error('Vectorization failed:', error)
+    })
+
+    return new Response(JSON.stringify(course), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
     console.error('Error creating course:', error)
-    return NextResponse.json({ error: 'Failed to create course' }, { status: 500 })
-  }
-}
-
-export async function GET() {
-  try {
-    const courses = await prisma.course.findMany({
-      orderBy: { createdAt: 'desc' }
+    return new Response(JSON.stringify({ error: 'Failed to create course' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
     })
-    return NextResponse.json(courses)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 })
   }
 } 

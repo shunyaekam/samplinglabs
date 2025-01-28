@@ -11,13 +11,14 @@ model Course {
   id               String          @id @default(cuid())
   title            String
   description      String
-  status           String         // 'active', 'draft', 'archived'
-  fileType         String         // 'pdf'
+  status           String // 'active', 'draft', 'archived'
+  fileType         String // 'pdf'
   originalFileName String
-  content          String         @db.Text // Store PDF as base64
+  content          String          @db.Text // Store PDF as base64
   chunks           DocumentChunk[]
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  vectors          CourseVector[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 }
 
 model DocumentChunk {
@@ -27,4 +28,17 @@ model DocumentChunk {
   course    Course   @relation(fields: [courseId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-} 
+}
+
+model CourseVector {
+  id        String   @id @default(cuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chunk     String   @db.Text
+  embedding Float[] // Store actual embedding vectors
+  metadata  Json // Store chunk metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+}
